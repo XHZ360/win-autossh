@@ -1,7 +1,7 @@
 #local-address:local-port,remote-address:remote-port,
 mappings:
-  # server listening on remote-address:remote-port and forward to [local-address:local-port] on local machine
-  # remote host sshd.config should set GatewayPorts clientspecified
+  # remote host listening on remote-address:remote-port and forward to [local-address:local-port] on local machine
+  # remote host sshd.config should set GatewayPorts `clientspecified` otherwise the listening address will not be specified
   rtl:
     - "localhost:5173,0.0.0.0:5173"
   # local machine listening on local-address:local-port and forward to remote-address:remote-port on server
@@ -12,4 +12,3 @@ server:
   user: "proxy"
   password: "*****"
   keyfile: "C:/Users/yourAccount/.ssh/id_rsa"
-  

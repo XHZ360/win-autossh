@@ -1,0 +1,8 @@
+*.zip
+*.log
+!*.yaml
+*.exe
+dist/*
+logs/*
+.idea/*
+.vscode/*

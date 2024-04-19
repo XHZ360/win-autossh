@@ -113,7 +113,7 @@ func (p *myProgram) run() {
 					if portsMap[index] {
 						continue
 					}
-					success := forward(p.client, &portPair.remote, &portPair.local, portPair.mode)
+					success := forward(p.client, portPair.remote, portPair.local, portPair.mode)
 					if success {
 						successForwardCount++
 						portsMap[index] = true

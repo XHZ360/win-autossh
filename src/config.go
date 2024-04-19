@@ -12,8 +12,8 @@ import (
 )
 
 type AddressPair struct {
-	remote net.TCPAddr
-	local  net.TCPAddr
+	remote *net.TCPAddr
+	local  *net.TCPAddr
 	mode   ForwardMode
 }
 
@@ -29,12 +29,12 @@ func strToAddressPair(s string, mode ForwardMode) (AddressPair, error) {
 	if err != nil {
 		return p, fmt.Errorf("invalid local address: %s", addresses[0])
 	}
-	p.local = *lAddr
+	p.local = lAddr
 	rAddr, err := net.ResolveTCPAddr("tcp", addresses[1])
 	if err != nil {
 		return p, fmt.Errorf("invalid remote address: %s", addresses[1])
 	}
-	p.remote = *rAddr
+	p.remote = rAddr
 	return p, nil
 }
 func toAddressPair(listStr []string, mode ForwardMode) []AddressPair {

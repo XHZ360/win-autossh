@@ -152,6 +152,7 @@ func copyConnToRemoteAddr(client *ssh.Client, conn net.Conn, rAddr *net.TCPAddr)
 	dstConn, err := client.DialTCP("tcp", nil, rAddr)
 	if err != nil {
 		log.Println("unable to dial: ", err)
+		_ = conn.Close()
 		return
 	}
 	copyBetween(conn, dstConn)
@@ -164,6 +165,7 @@ func copyConnToLocalAddr(conn net.Conn, lAddr *net.TCPAddr) {
 	dstConn, err := net.DialTCP("tcp", nil, lAddr)
 	if err != nil {
 		log.Println("unable to dial: ", err)
+		_ = conn.Close()
 		return
 	}
 	copyBetween(conn, dstConn)

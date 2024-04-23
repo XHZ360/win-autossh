@@ -20,7 +20,7 @@ type myProgram struct {
 	workDir string
 }
 
-func (p *myProgram) Start(s service.Service) error {
+func (p *myProgram) Start(_ service.Service) error {
 	log.Println("Service starting...")
 	// 启动服务时执行的操作
 	go p.run()
@@ -70,45 +70,55 @@ func (p *myProgram) run() {
 		},
 	}
 
-	skipCreateClient := false
-	skipForward := false
 	portsMap := make(map[int]bool, len(cfg.mappings))
 	successForwardCount := 0
+
+	loopFinishedChn := make(chan bool)
+	clientCloseChn := make(chan bool)
+
 	for index := range cfg.mappings {
 		portsMap[index] = false
 	}
-	for {
-		select {
-		case s := <-p.chn:
-			log.Printf("Received signal: %d", s)
-			return
-
-		default:
-			// create client
-			if skipCreateClient || p.client != nil {
-
-			} else {
-				client, err := ssh.Dial("tcp", cfg.server.addr, sshClientConfig)
-				if err != nil {
-					if errors.Is(err, ssh.ErrNoAuth) {
-						log.Fatal("No authentication methods available")
-					}
-					log.Println("Failed to dial: ", err)
-					skipCreateClient = true
-					time.AfterFunc(time.Second*10, func() { skipCreateClient = false })
-					continue
-				}
-
-				log.Print("Connected to server")
-				p.client = client
-				// reset ports map
-				for index := range cfg.mappings {
-					portsMap[index] = false
-				}
-				successForwardCount = 0
+	createClientTask := func() bool {
+		client, err := ssh.Dial("tcp", cfg.server.addr, sshClientConfig)
+		if err != nil {
+			if errors.Is(err, ssh.ErrNoAuth) {
+				log.Fatal("No authentication methods available")
 			}
+			return false
+		}
+		log.Print("Connected to server")
+		p.client = client
+		// reset ports map
+		for index := range cfg.mappings {
+			portsMap[index] = false
+		}
+		successForwardCount = 0
+		go func() {
+			_ = client.Wait()
+			clientCloseChn <- true
+		}()
+		return true
+	}
+	mainTask := func() {
+		// connect to server
+		if p.client == nil {
+			if !createClientTask() {
+				log.Printf("Failed to connect to server, retry after 10s")
+				time.Sleep(10 * time.Second)
+				loopFinishedChn <- false
+			}
+		}
+
+		select {
+		case <-clientCloseChn:
+			log.Printf("Client closed, retry after 10s")
+			p.client = nil
+			time.Sleep(10 * time.Second)
+			loopFinishedChn <- false
+		default:
 			// forward ports
-			if successForwardCount < len(cfg.mappings) && !skipForward {
+			if successForwardCount < len(cfg.mappings) {
 				for index, portPair := range cfg.mappings {
 					if portsMap[index] {
 						continue
@@ -119,15 +129,31 @@ func (p *myProgram) run() {
 						portsMap[index] = true
 					}
 				}
-				skipForward = true
-				time.AfterFunc(time.Second*2, func() {
-					skipForward = false
-				})
 			}
+			// check if all ports forwarded
+			if successForwardCount == len(cfg.mappings) {
+				time.Sleep(10 * time.Second)
+			} else {
+				log.Printf("%d not forwarded, retry after 5s", len(cfg.mappings)-successForwardCount)
+				time.Sleep(5 * time.Second)
+			}
+			loopFinishedChn <- true
+		}
+	}
+	go mainTask()
+	for {
+		// debug
+		select {
+		case s := <-p.chn:
+			log.Printf("Received signal: %d", s)
+			return
+		case <-loopFinishedChn:
+			go mainTask()
+
 		}
 	}
 }
-func (p *myProgram) Stop(s service.Service) error {
+func (p *myProgram) Stop(_ service.Service) error {
 	if p.chn != nil {
 		p.chn <- 1
 	}

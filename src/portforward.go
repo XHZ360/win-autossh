@@ -34,69 +34,37 @@ func forward(client *ssh.Client, rAddr *net.TCPAddr, lAddr *net.TCPAddr, mode Fo
 		log.Printf("Forward port: %s%s --> %s%s", RemoteMark, rAddr, LocalMark, lAddr)
 
 		go func() {
-			defer func(tl net.Listener) {
-				err := tl.Close()
-				if err != nil {
-					log.Println("unable to close listener: ", err)
-				}
-			}(tl)
-			failedCount := 0
 			for {
 				conn, err := tl.Accept()
 				if err != nil {
-					failedCount++
 					log.Printf("unable to accept incoming connection: %v", err)
-					if failedCount > 10 {
-						log.Printf("too many failed attempts, closing listener")
-						err := client.Close()
-						if err != nil {
-							return
-						}
-						return
-					}
-					continue
+					_ = client.Close()
+					break
 				}
 				log.Printf("Accepted incoming connection: %s%s --> %s%s --> %s%s", RemoteMark, conn.RemoteAddr(), RemoteMark, conn.LocalAddr(), LocalMark, lAddr)
 				go copyConnToLocalAddr(conn, lAddr)
 			}
+			_ = tl.Close()
 		}()
 	case ForwardModeLtr:
 		tl, err := net.ListenTCP("tcp", lAddr)
-
 		if err != nil {
 			log.Printf("Failed to forward port: %s%s --> %s%s, because %s", RemoteMark, rAddr, LocalMark, lAddr, err.Error())
 		}
 		log.Printf("Forward port: %s%s --> %s%s", LocalMark, lAddr, RemoteMark, rAddr)
 		go func() {
-			defer func(tl net.Listener) {
-				err := tl.Close()
-				if err != nil {
-					log.Println("unable to close listener: ", err)
-				}
-			}(tl)
-			failedCount := 0
 			for {
 				conn, err := tl.Accept()
 				if err != nil {
-					failedCount++
 					log.Printf("unable to accept incoming connection: %v", err)
-					if failedCount > 10 {
-						log.Printf("too many failed attempts, closing listener")
-						err := client.Close()
-						if err != nil {
-							return
-						}
-						return
-					}
-					continue
+					break
 				}
 				log.Printf("Accepted incoming connection: %s%s --> %s%s --> %s%s", LocalMark, conn.RemoteAddr(), LocalMark, conn.LocalAddr(), RemoteMark, rAddr)
 				go copyConnToRemoteAddr(client, conn, rAddr)
 			}
+			_ = tl.Close()
 		}()
-
 	}
-
 	return true
 }
 
@@ -120,7 +88,7 @@ func checkRemotePortAvailable(client *ssh.Client, rAddr *net.TCPAddr) bool {
 		}
 		log.Fatal("unable to run netstat: ", err)
 	}
-	return true
+	return false
 }
 
 func copyBetween(srcConn net.Conn, dstConn net.Conn) {
